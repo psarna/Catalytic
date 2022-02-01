@@ -2,7 +2,8 @@ use crate::crud::{extract_columns, extract_table_name, find_operation};
 use catalytic::capitalizing::table_name_to_struct_name;
 use catalytic::env_property_reader::keyspace;
 use catalytic::query_metadata::{
-    query_columns, ColumnInQuery, ParameterizedColumnType, ParameterizedValue, QueryMetadata, Ttl,
+    query_columns, ColumnInQuery, ParameterizedColumnType, ParameterizedValue, QueryMetadata,
+    Timeout, Timestamp, Ttl,
 };
 use catalytic::runtime::{block_on, GLOBAL_CONNECTION};
 use catalytic::table_metadata::{ColumnInTable, ColumnType};
@@ -32,7 +33,9 @@ pub fn extract_query_meta_data(query: impl AsRef<str>) -> QueryMetadata {
         panic!("Insert query is missing values");
     }
 
-    let ttl = extract_ttl(&query);
+    let ttl = extract_using::<Ttl>(&query, "ttl");
+    let timestamp = extract_using::<Timestamp>(&query, "timestamp");
+    let timeout = extract_using::<Timeout>(&query, "timeout");
     let mut parameterized_columns_types =
         create_parameterized_column_types(&columns, &extracted_columns);
 
@@ -97,6 +100,8 @@ pub fn extract_query_meta_data(query: impl AsRef<str>) -> QueryMetadata {
         limited,
         struct_name: table_name_to_struct_name(table_name),
         ttl,
+        timestamp,
+        timeout,
         table_name: table_name.to_string(),
     }
 }
@@ -141,18 +146,14 @@ pub fn test_query(query: impl AsRef<str>) -> QueryMetadata {
     qmd
 }
 
-fn extract_ttl(query: &str) -> Option<Ttl> {
-    let ttl_regex = regex::Regex::new("using ttl (.*)").unwrap();
+fn extract_using<ParamType: std::str::FromStr>(query: &str, param: &str) -> Option<ParamType> {
+    let param_regex = regex::Regex::new(&format!("using (.* and)* {} (.*)", param)).unwrap();
 
-    if let Some(m) = ttl_regex.captures(query) {
-        // Extract the ttl value
-        let ttl = m.get(1).unwrap().as_str();
+    if let Some(m) = param_regex.captures(query) {
+        // Extract the param value
+        let param_value = m.get(1).unwrap().as_str();
 
-        if ttl == "?" {
-            Some(Ttl::Parameterized)
-        } else {
-            Some(Ttl::Fixed(ttl.parse().unwrap()))
-        }
+        ParamType::from_str(param_value).ok()
     } else {
         None
     }
@@ -243,13 +244,13 @@ mod query_tests {
 
     #[test]
     fn ttl() {
-        assert!(extract_ttl("insert into no_ttl(c) values (1)").is_none());
+        assert!(extract_using::<Ttl>("insert into no_ttl(c) values (1)", "ttl").is_none());
         assert_eq!(
-            extract_ttl("insert into no_ttl(c) values (1) using ttl 102"),
+            extract_using::<Ttl>("insert into no_ttl(c) values (1) using ttl 102", "ttl"),
             Some(Ttl::Fixed(102))
         );
         assert_eq!(
-            extract_ttl("insert into no_ttl(c) values (1) using ttl ?"),
+            extract_using::<Ttl>("insert into no_ttl(c) values (1) using ttl ?", "ttl"),
             Some(Ttl::Parameterized)
         );
     }
@@ -344,6 +345,8 @@ mod query_tests {
                 table_name: "test_table".to_string(),
                 limited: true,
                 ttl: None,
+                timestamp: None,
+                timeout: None,
             }
         );
     }

@@ -2,10 +2,10 @@ use crate::entity_writer::EntityWriter;
 use crate::query_ident::{
     all_in_memory, base_table, base_table_query, create_variant, delete_fn_name, in_memory_update,
     in_memory_updates, insert_constant, insert_fn_name, insert_or_delete_fn_name,
-    insert_ttl_constant, insert_ttl_fn_name, primary_key_owned, primary_key_struct,
-    primary_key_struct_parameter, primary_key_struct_ref, qv, select_all_constant,
-    select_all_count_constant, select_all_count_fn_name, select_all_fn_name, struct_ref, to_ref,
-    truncate_constant, truncate_fn_name, updatable_column,
+    insert_ttl_constant, insert_ttl_fn_name, insert_using_constant, insert_using_fn_name,
+    primary_key_owned, primary_key_struct, primary_key_struct_parameter, primary_key_struct_ref,
+    qv, select_all_constant, select_all_count_constant, select_all_count_fn_name,
+    select_all_fn_name, struct_ref, to_ref, truncate_constant, truncate_fn_name, updatable_column,
 };
 use crate::transformer::Transformer;
 use proc_macro2::{Ident, TokenStream};
@@ -187,9 +187,18 @@ pub(crate) fn write<T: Transformer>(
             let insert_ttl_query_const_name = insert_ttl_constant();
             let insert_ttl_query = format!("{} using ttl ?", insert_query);
 
+            let insert_using_query_const_name = insert_using_constant();
+            let insert_using_query =
+                format!("{} using ttl ? and timestamp ? and timeout ?", insert_query);
+
             tokens_constants.extend(quote! {
                 /// The query to insert a unique row in the table with a TTL
                 pub const #insert_ttl_query_const_name: &str = #insert_ttl_query;
+            });
+
+            tokens_constants.extend(quote! {
+                /// The query to insert a unique row in the table with a USING clause
+                pub const #insert_using_query_const_name: &str = #insert_using_query;
             });
 
             let truncate_query_const_name = truncate_constant();
@@ -203,11 +212,14 @@ pub(crate) fn write<T: Transformer>(
             let insert_fn_name = insert_fn_name();
             let insert_constant = insert_constant();
             let insert_ttl_fn_name = insert_ttl_fn_name();
+            let insert_using_fn_name = insert_using_fn_name();
             let insert_ttl_constant = insert_ttl_constant();
+            let insert_using_constant = insert_using_constant();
             let truncate_fn_name = truncate_fn_name();
             let truncate_constant = truncate_constant();
             let field_count = entity_writer.struct_field_metadata.fields.len();
             let insert_with_ttl_values_len = field_count + 1;
+            let insert_with_using_values_len = field_count + 3;
             let idents = entity_writer.ident_fields();
             let truncate = entity_writer.truncate();
             let insert = entity_writer.insert();
@@ -216,6 +228,7 @@ pub(crate) fn write<T: Transformer>(
             let truncate_qv = qv(&truncate_fn_name);
             let insert_qv = qv(&insert_fn_name);
             let insert_ttl_qv = qv(&insert_ttl_fn_name);
+            let insert_using_qv = qv(&insert_using_fn_name);
 
             tokens_type.extend(quote! {
                 /// Returns a struct that can perform a truncate operation
@@ -272,6 +285,37 @@ pub(crate) fn write<T: Transformer>(
                         #log_library::debug!("Insert with ttl {}, {:#?}", ttl, self);
 
                         self.#insert_ttl_qv(ttl)?.insert(session).await
+                    }
+
+                    pub fn #insert_using_qv(&self, params: UsingParams) -> Result<#insert, SerializeValuesError> {
+                        let mut serialized = SerializedValues::with_capacity(#insert_with_using_values_len);
+
+                        #(serialized.add_value(&self.#idents)?);*;
+
+                        match params.ttl {
+                            Some(t) => serialized.add_value(&t)?,
+                            None => serialized.add_value(&Unset)?,
+                        }
+                        match params.timestamp {
+                            Some(t) => serialized.add_value(&t)?,
+                            None => serialized.add_value(&Unset)?,
+                        }
+                        match params.timeout {
+                            Some(t) => serialized.add_value(&t)?,
+                            None => serialized.add_value(&Unset)?,
+                        }
+
+                        Ok(#insert::new(Qv {
+                            query: #insert_using_constant,
+                            values: serialized,
+                        }))
+                    }
+
+                    /// Performs an insert with a USING clause
+                    pub async fn #insert_using_fn_name(&self, session: &CachingSession, params: UsingParams) -> ScyllaQueryResult {
+                        #log_library::debug!("Insert using {}, {:#?}", params, self);
+
+                        self.#insert_using_qv(params)?.insert(session).await
                     }
 
                     /// Performs either an insertion or deletion, depending on the insert parameter

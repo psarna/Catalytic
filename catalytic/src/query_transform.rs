@@ -17,6 +17,25 @@ use std::ops::{Deref, DerefMut};
 pub type ScyllaQueryResult = Result<QueryResult, QueryError>;
 pub type CountType = i64;
 pub type TtlType = i32;
+pub type TimestampType = i64;
+pub type TimeoutType = String;
+pub struct UsingParams {
+    pub ttl: Option<TtlType>,
+    pub timestamp: Option<TimestampType>,
+    pub timeout: Option<TimeoutType>,
+}
+
+impl std::fmt::Display for UsingParams {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "(ttl: {}, timestamp: {}, timeout: {})",
+            self.ttl.unwrap_or(-1),
+            self.timestamp.unwrap_or(-1),
+            self.timeout.as_deref().unwrap_or("-")
+        )
+    }
+}
 
 /// The Count struct is returned when a count query is executed
 #[derive(scylla::FromRow, Debug, Clone, Copy, PartialEq)]

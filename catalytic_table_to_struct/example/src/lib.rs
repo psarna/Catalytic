@@ -43,6 +43,18 @@ mod test {
         // Insert with ttl
         child.to_ref().insert_ttl(&session, 100).await.unwrap();
         child.to_ref().insert(&session).await.unwrap();
+        child
+            .to_ref()
+            .insert_using(
+                &session,
+                UsingParams {
+                    ttl: Some(150),
+                    timestamp: Some(12345),
+                    timeout: Some("5s"),
+                },
+            )
+            .await
+            .unwrap();
 
         // Selects
         macro_rules! eq {

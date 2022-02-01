@@ -2,6 +2,7 @@ use crate::env_property_reader::keyspace;
 use crate::runtime::query_collect_to_vec;
 use crate::sort::sort_columns;
 use crate::table_metadata::{ColumnInTable, ColumnType};
+use std::str::FromStr;
 
 /// Meta data of a query
 #[derive(Debug, PartialEq, Clone)]
@@ -20,12 +21,64 @@ pub struct QueryMetadata {
     pub limited: bool,
     /// The TTL of the query if provided
     pub ttl: Option<Ttl>,
+    /// Timestamp of the query if provided (milliseconds since UNIX epoch)
+    pub timestamp: Option<Timestamp>,
+    /// Timeout of the query if provided (CQL string representation, e.g. 5ms or 1h)
+    pub timeout: Option<Timeout>,
 }
 
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub enum Ttl {
     Parameterized,
     Fixed(i32),
+}
+
+#[derive(Debug, PartialEq, Copy, Clone)]
+pub enum Timestamp {
+    Parameterized,
+    Fixed(i64),
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum Timeout {
+    Parameterized,
+    Fixed(String),
+}
+
+impl FromStr for Ttl {
+    type Err = <i32 as FromStr>::Err;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if s == "?" {
+            Ok(Self::Parameterized)
+        } else {
+            Ok(Self::Fixed(s.parse()?))
+        }
+    }
+}
+
+impl FromStr for Timestamp {
+    type Err = <i64 as FromStr>::Err;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if s == "?" {
+            Ok(Self::Parameterized)
+        } else {
+            Ok(Self::Fixed(s.parse()?))
+        }
+    }
+}
+
+impl FromStr for Timeout {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if s == "?" {
+            Ok(Self::Parameterized)
+        } else {
+            Ok(Self::Fixed(s.to_string()))
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Clone)]

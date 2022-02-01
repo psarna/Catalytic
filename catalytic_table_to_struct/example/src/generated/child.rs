@@ -3,12 +3,12 @@
 use catalytic::query_transform::{
     CountType, DeleteUnique, Insert, MultipleSelectQueryErrorTransform, QueryEntityVec,
     QueryEntityVecResult, QueryResultUniqueRow, QueryResultUniqueRowExpect, Qv, ScyllaQueryResult,
-    SelectMultiple, SelectUnique, SelectUniqueExpect, SingleSelectQueryErrorTransform, Truncate,
-    TtlType, Update,
+    SelectMultiple, SelectUnique, SelectUniqueExpect, SingleSelectQueryErrorTransform, TimeoutType,
+    TimestampType, Truncate, TtlType, Update, UsingParams,
 };
-#[allow(unused_imports)]
-use scylla::frame::value::SerializeValuesError;
 use scylla::frame::value::SerializedValues;
+#[allow(unused_imports)]
+use scylla::frame::value::{SerializeValuesError, Unset};
 use scylla::transport::errors::QueryError;
 use scylla::transport::iterator::TypedRowIterator;
 use scylla::CachingSession;
@@ -22,6 +22,8 @@ pub const INSERT_QUERY: &str =
 #[doc = r" The query to insert a unique row in the table with a TTL"]
 pub const INSERT_TTL_QUERY: &str =
     "insert into child(birthday, enum_json, json, json_nullable) values (?, ?, ?, ?) using ttl ?";
+#[doc = r" The query to insert a unique row in the table with a USING clause"]
+pub const INSERT_USING_QUERY : & str = "insert into child(birthday, enum_json, json, json_nullable) values (?, ?, ?, ?) using ttl ? and timestamp ? and timeout ?" ;
 #[doc = r" The query truncate the whole table"]
 pub const TRUNCATE_QUERY: &str = "truncate child";
 #[doc = r" The query to retrieve a unique row in this table"]
@@ -198,6 +200,38 @@ impl<'a> ChildRef<'a> {
     pub async fn insert_ttl(&self, session: &CachingSession, ttl: TtlType) -> ScyllaQueryResult {
         tracing::debug!("Insert with ttl {}, {:#?}", ttl, self);
         self.insert_ttl_qv(ttl)?.insert(session).await
+    }
+    pub fn insert_using_qv(&self, params: UsingParams) -> Result<Insert, SerializeValuesError> {
+        let mut serialized = SerializedValues::with_capacity(7usize);
+        serialized.add_value(&self.birthday)?;
+        serialized.add_value(&self.enum_json)?;
+        serialized.add_value(&self.json)?;
+        serialized.add_value(&self.json_nullable)?;
+        match params.ttl {
+            Some(t) => serialized.add_value(&t)?,
+            None => serialized.add_value(&Unset)?,
+        }
+        match params.timestamp {
+            Some(t) => serialized.add_value(&t)?,
+            None => serialized.add_value(&Unset)?,
+        }
+        match params.timeout {
+            Some(t) => serialized.add_value(&t)?,
+            None => serialized.add_value(&Unset)?,
+        }
+        Ok(Insert::new(Qv {
+            query: INSERT_USING_QUERY,
+            values: serialized,
+        }))
+    }
+    #[doc = r" Performs an insert with a USING clause"]
+    pub async fn insert_using(
+        &self,
+        session: &CachingSession,
+        params: UsingParams,
+    ) -> ScyllaQueryResult {
+        tracing::debug!("Insert using {}, {:#?}", params, self);
+        self.insert_using_qv(params)?.insert(session).await
     }
     #[doc = r" Performs either an insertion or deletion, depending on the insert parameter"]
     pub async fn insert_or_delete(

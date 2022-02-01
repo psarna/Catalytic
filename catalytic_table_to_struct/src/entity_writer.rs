@@ -37,7 +37,7 @@ impl<T: Transformer> EntityWriter<'_, T> {
             use scylla::transport::errors::QueryError;
             use scylla::frame::value::SerializedValues;
             #[allow(unused_imports)]
-            use scylla::frame::value::SerializeValuesError;
+            use scylla::frame::value::{SerializeValuesError, Unset};
             #[allow(unused_imports)]
             use catalytic::query_transform::{
                 ScyllaQueryResult,
@@ -48,7 +48,10 @@ impl<T: Transformer> EntityWriter<'_, T> {
                 QueryResultUniqueRow,
                 QueryResultUniqueRowExpect,
                 CountType,
+                TimeoutType,
+                TimestampType,
                 TtlType,
+                UsingParams,
                 Qv,
                 SelectUnique,
                 SelectMultiple,

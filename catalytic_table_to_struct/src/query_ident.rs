@@ -76,6 +76,7 @@ macro_rules! write_query {
 write_query!(insert_or_delete_fn_name, "insert_or_delete");
 write_query!(insert_fn_name, "insert", insert_constant);
 write_query!(insert_ttl_fn_name, "insert_ttl", insert_ttl_constant);
+write_query!(insert_using_fn_name, "insert_using", insert_using_constant);
 write_query!(truncate_fn_name, "truncate", truncate_constant);
 write_query!(
     select_unique_fn_name,

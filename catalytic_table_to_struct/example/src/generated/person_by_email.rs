@@ -4,12 +4,12 @@ use super::person::Person;
 use catalytic::query_transform::{
     CountType, DeleteUnique, Insert, MultipleSelectQueryErrorTransform, QueryEntityVec,
     QueryEntityVecResult, QueryResultUniqueRow, QueryResultUniqueRowExpect, Qv, ScyllaQueryResult,
-    SelectMultiple, SelectUnique, SelectUniqueExpect, SingleSelectQueryErrorTransform, Truncate,
-    TtlType, Update,
+    SelectMultiple, SelectUnique, SelectUniqueExpect, SingleSelectQueryErrorTransform, TimeoutType,
+    TimestampType, Truncate, TtlType, Update, UsingParams,
 };
-#[allow(unused_imports)]
-use scylla::frame::value::SerializeValuesError;
 use scylla::frame::value::SerializedValues;
+#[allow(unused_imports)]
+use scylla::frame::value::{SerializeValuesError, Unset};
 use scylla::transport::errors::QueryError;
 use scylla::transport::iterator::TypedRowIterator;
 use scylla::CachingSession;
